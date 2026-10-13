@@ -3,13 +3,17 @@ import json
 
 import joblib
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
-    accuracy_score, classification_report, ConfusionMatrixDisplay, f1_score
+    accuracy_score,
+    classification_report,
+    ConfusionMatrixDisplay,
+    f1_score,
 )
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
@@ -41,14 +45,23 @@ y = df["Drug"]
 
 categorical = ["Sex", "BP", "Cholesterol"]
 numerical = ["Age", "Na_to_K"]
-preprocessor = ColumnTransformer([
-    ("categorical", OneHotEncoder(handle_unknown="ignore"), categorical),
-    ("numerical", "passthrough", numerical),
-])
-pipeline = Pipeline([
-    ("preprocessor", preprocessor),
-    ("classifier", RandomForestClassifier(n_estimators=200, random_state=42, class_weight="balanced")),
-])
+preprocessor = ColumnTransformer(
+    [
+        ("categorical", OneHotEncoder(handle_unknown="ignore"), categorical),
+        ("numerical", "passthrough", numerical),
+    ]
+)
+pipeline = Pipeline(
+    [
+        ("preprocessor", preprocessor),
+        (
+            "classifier",
+            RandomForestClassifier(
+                n_estimators=200, random_state=42, class_weight="balanced"
+            ),
+        ),
+    ]
+)
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
@@ -68,8 +81,10 @@ initial_types = [
     ("Na_to_K", DoubleTensorType([None, 1])),
 ]
 onnx_model = to_onnx(
-    pipeline, initial_types=initial_types, target_opset=17,
-    options={id(pipeline): {"zipmap": False}}
+    pipeline,
+    initial_types=initial_types,
+    target_opset=17,
+    options={id(pipeline): {"zipmap": False}},
 )
 (MODEL_DIR / "drug_model.onnx").write_bytes(onnx_model.SerializeToString())
 
@@ -86,9 +101,17 @@ ConfusionMatrixDisplay.from_predictions(y_test, predictions, xticks_rotation="ve
 plt.tight_layout()
 plt.savefig(RESULTS_DIR / "confusion_matrix.png", dpi=150)
 plt.close()
-(RESULTS_DIR / "summary.json").write_text(json.dumps({
-    "rows": len(df), "accuracy": accuracy, "weighted_f1": f1,
-    "classes": sorted(map(str, y.unique()))
-}, indent=2), encoding="utf-8")
+(RESULTS_DIR / "summary.json").write_text(
+    json.dumps(
+        {
+            "rows": len(df),
+            "accuracy": accuracy,
+            "weighted_f1": f1,
+            "classes": sorted(map(str, y.unique())),
+        },
+        indent=2,
+    ),
+    encoding="utf-8",
+)
 print(report)
 print("Training, evaluation, and ONNX export completed.")

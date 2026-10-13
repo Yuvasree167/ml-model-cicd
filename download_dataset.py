@@ -22,6 +22,8 @@ if not destination.exists():
             if destination.exists():
                 destination.unlink()
     else:
-        raise RuntimeError(f"Could not download dataset. Download drug200.csv manually into data/. Details: {last_error}")
+        raise RuntimeError(
+            f"Could not download dataset. Download drug200.csv manually into data/. Details: {last_error}"
+        )
 
 print(f"Dataset ready: {destination}")
