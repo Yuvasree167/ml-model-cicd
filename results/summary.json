@@ -1,0 +1,12 @@
+{
+  "rows": 200,
+  "accuracy": 0.975,
+  "weighted_f1": 0.9736363636363636,
+  "classes": [
+    "drugA",
+    "drugB",
+    "drugC",
+    "drugX",
+    "drugY"
+  ]
+}

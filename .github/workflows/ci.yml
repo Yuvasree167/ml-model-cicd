@@ -1,0 +1,66 @@
+name: ML CI and CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  train-evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Download dataset
+        run: python download_dataset.py
+      - name: Check formatting
+        run: python -m black --check train.py download_dataset.py
+      - name: Train and evaluate model
+        run: python train.py
+      - name: Publish evaluation report with CML
+        if: github.event_name == 'pull_request'
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm install --global @dvcorg/cml
+          {
+            echo "# Model Evaluation"
+            echo
+            cat results/metrics.txt
+            echo
+            echo "## Confusion Matrix"
+            echo
+            echo "![Confusion matrix](results/confusion_matrix.png)"
+          } > report.md
+          cml comment create report.md
+      - name: Upload model and results as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model-and-results
+          path: |
+            model/
+            results/
+      - name: Deploy app, model, and results to Hugging Face Static Space
+        if: github.event_name != 'pull_request'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
+        run: |
+          python -m pip install --upgrade huggingface_hub
+          hf auth login --token "$HF_TOKEN"
+          hf upload "$HF_SPACE_ID" app/ . --repo-type space --commit-message "Deploy static inference app"
+          hf upload "$HF_SPACE_ID" model/ model --repo-type space --commit-message "Upload trained model"
+          hf upload "$HF_SPACE_ID" results/ results --repo-type space --commit-message "Upload evaluation results"

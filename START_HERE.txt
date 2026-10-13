@@ -1,0 +1,17 @@
+START HERE — ML CI/CD PROJECT
+
+1. Extract the ZIP.
+2. Open the extracted ml-cicd-gradio-lite folder in VS Code.
+3. Open Terminal > New Terminal.
+4. Run each command separately:
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   python download_dataset.py
+   python train.py
+5. Start the web server:
+   python -m http.server 8000
+6. Open http://localhost:8000/app/ in your browser.
+
+You do not need to copy the ONNX model to another folder. The app checks the right local/deployed paths automatically.
+Do not paste terminal output back into PowerShell; only type the commands listed above.

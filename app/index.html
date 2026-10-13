@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drug Classification | ML CI/CD</title>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
+<style>
+:root{font-family:Inter,system-ui,Arial,sans-serif;color:#eaf0ff;background:#0b1020}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}
+.card{width:min(760px,100%);background:#141c31;border:1px solid #2c3857;border-radius:20px;padding:30px;box-shadow:0 20px 70px #0005}
+h1{margin:0 0 8px;font-size:clamp(25px,4vw,36px)}.sub{color:#aab8d6;line-height:1.5;margin-bottom:24px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}label{display:block;color:#cbd6ee;font-size:14px}
+input,select{width:100%;margin-top:7px;padding:12px;border-radius:10px;border:1px solid #3a496b;background:#0c1427;color:#fff;font-size:16px}
+button{width:100%;margin-top:20px;padding:14px;border:0;border-radius:10px;background:#4778ff;color:white;font-weight:700;font-size:16px;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}.status{margin-top:16px;color:#aab8d6}.result{margin-top:18px;background:#0c1427;border:1px solid #334361;border-radius:12px;padding:18px;display:none}
+.prediction{font-size:25px;font-weight:800;margin-top:6px}.warning{font-size:12px;color:#9eacc8;line-height:1.5;margin-top:20px}
+@media(max-width:560px){.grid{grid-template-columns:1fr}.card{padding:22px}}
+</style>
+</head>
+<body>
+<main class="card">
+<h1>Drug Classification</h1>
+<p class="sub">A demonstration of a machine-learning model trained in CI and deployed to a static web app. Enter sample attributes to test browser-side ONNX inference.</p>
+<form id="form">
+<div class="grid">
+<label>Age (years)<input id="age" type="number" min="1" max="120" value="30" required></label>
+<label>Sex<select id="sex"><option>F</option><option>M</option></select></label>
+<label>Blood pressure<select id="bp"><option>LOW</option><option selected>NORMAL</option><option>HIGH</option></select></label>
+<label>Cholesterol<select id="cholesterol"><option>NORMAL</option><option>HIGH</option></select></label>
+<label>Sodium-to-potassium ratio<input id="na_to_k" type="number" min="0.01" step="0.001" value="15.0" required></label>
+</div>
+<button id="predict" type="submit" disabled>Loading model…</button>
+</form>
+<div id="status" class="status">Loading ONNX model…</div>
+<section id="result" class="result" aria-live="polite">
+<div>Predicted dataset class</div><div id="class" class="prediction">—</div>
+<div style="margin-top:10px">Model confidence: <strong id="confidence">—</strong></div>
+</section>
+<p class="warning">Educational demonstration only. The dataset and model are not clinically validated. Do not use this application to select, change, or prescribe medication. Consult a qualified healthcare professional.</p>
+</main>
+<script>
+const MODEL_URLS = ["./model/drug_model.onnx", "../model/drug_model.onnx"];
+let session;
+const $ = id => document.getElementById(id);
+async function loadModel() {
+  let lastError;
+  for (const url of MODEL_URLS) {
+    try {
+      session = await ort.InferenceSession.create(url, { executionProviders: ["wasm"] });
+      $("status").textContent = "Model loaded. You can now run a sample prediction.";
+      $("predict").disabled = false;
+      $("predict").textContent = "Predict class";
+      return;
+    } catch (err) {
+      lastError = err;
+      console.warn("Could not load model from", url, err);
+    }
+  }
+  console.error(lastError);
+  $("status").textContent = "Could not load model. Run python train.py first, then refresh this page.";
+}
+$("form").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!session) return;
+  $("predict").disabled = true;
+  $("status").textContent = "Running inference…";
+  try {
+    const feeds = {
+      Age: new ort.Tensor("int64", BigInt64Array.from([BigInt(Math.round(Number($("age").value)))]), [1,1]),
+      Sex: new ort.Tensor("string", [$("sex").value], [1,1]),
+      BP: new ort.Tensor("string", [$("bp").value], [1,1]),
+      Cholesterol: new ort.Tensor("string", [$("cholesterol").value], [1,1]),
+      Na_to_K: new ort.Tensor("float64", Float64Array.from([Number($("na_to_k").value)]), [1,1])
+    };
+    const output = await session.run(feeds);
+    const labelOutput = output.label || output.output_label || Object.values(output).find(v => v.type === "string");
+    const probOutput = output.probabilities || output.output_probability || Object.values(output).find(v => v.type !== "string");
+    if (!labelOutput) throw new Error("Could not identify the model label output.");
+    $("class").textContent = String(labelOutput.data[0]);
+    if (probOutput && probOutput.data && probOutput.data.length) {
+      $("confidence").textContent = (Math.max(...Array.from(probOutput.data)) * 100).toFixed(1) + "%";
+    } else $("confidence").textContent = "Not provided";
+    $("result").style.display = "block";
+    $("status").textContent = "Prediction completed in your browser.";
+  } catch (err) {
+    console.error(err);
+    $("status").textContent = "Prediction failed. Open browser Developer Tools for the technical error.";
+  } finally { $("predict").disabled = false; }
+});
+loadModel();
+</script>
+</body>
+</html>
